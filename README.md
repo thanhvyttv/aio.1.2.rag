@@ -20,5 +20,3 @@
 
 ## Xây dựng giao diện bằng Streamlit
 
-
-
