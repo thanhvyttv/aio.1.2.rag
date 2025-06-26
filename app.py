@@ -3,10 +3,12 @@ import shutil
 import sys
 import tempfile
 
+# Đảm bảo các dòng này là những dòng đầu tiên của file, trước các imports khác.
 __import__("pysqlite3")
 sys.modules["sqlite3"] = sys.modules["pysqlite3"]
 
-
+# Cần import chromadb sớm để các cài đặt có hiệu lực
+import chromadb  # <--- Đảm bảo import chromadb ở đây
 import streamlit as st
 import torch
 from langchain import hub
@@ -17,11 +19,10 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_huggingface.llms import HuggingFacePipeline
-from transformers import (  # BitsAndBytesConfig,
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    pipeline,
-)
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+
+# from chromadb.config import Settings # Không cần nếu chỉ dùng PersistentClient
+
 
 # Session state initialization
 if "rag_chain" not in st.session_state:
@@ -37,32 +38,40 @@ if "llm" not in st.session_state:
 # Function
 @st.cache_resource
 def load_embeddings():
-    return HuggingFaceEmbeddings(
-        model_name="bkai-foundation-models/vietnamese-bi-encoder"
-    )
+    print("Loading embeddings...")
+    # Sử dụng một embedding model nhỏ hơn, phổ biến hơn và đa ngôn ngữ tốt hơn
+    # 'bkai-foundation-models/vietnamese-bi-encoder' có thể cần tài nguyên lớn
+    # và có thể không được tối ưu cho tốc độ/bộ nhớ trên cloud miễn phí
+    embeddings_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+    embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
+    print("Embeddings loaded!")
+    return embeddings
 
 
 @st.cache_resource
 def load_llm():
-    MODEL_NAME = "lmsys/vicuna-7b-v1.5"
-    # MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    print("Loading LLM...")
+    # CHỌN MỘT MÔ HÌNH NHỎ HƠN ĐỂ TRÁNH LỖI OOM
+    # TinyLlama là 1.1B params, vẫn có thể nặng trên Streamlit Cloud
+    # DistilGPT2 là 124M params, nhẹ hơn rất nhiều, dùng để test chức năng
+    MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # Hoặc "distilgpt2" nếu TinyLlama vẫn chết queo
 
-    # bnb_config = BitsAndBytesConfig(
-    #     load_in_4bit=True,
-    #     bnb_4bit_use_double_quant=True,
-    #     bnb_4bit_compute_dtype=torch.bfloat16,
-    #     bnb_4bit_quant_type="nf4",
-    # )
+    # KHI SỬ DỤNG CUDA (GPU)
+    device = 0 if torch.cuda.is_available() else -1
+    print(f"Using device: {'GPU' if device == 0 else 'CPU'}")
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        # quantization_config=bnb_config,
-        device_map="auto",
-        offload_folder="./offload",  # Bắt buộc nếu thiếu VRAM
-        trust_remote_code=True,
+        # quantization_config=bnb_config, # Đã comment, rất tốt
+        device_map="auto",  # Tự động map sang GPU/CPU
+        torch_dtype=torch.float16,  # SỬ DỤNG float16 ĐỂ TIẾT KIỆM BỘ NHỚ
+        # offload_folder="./offload", # LOẠI BỎ: Gây chậm và có thể lỗi RAM
+        trust_remote_code=True,  # Giữ lại nếu model yêu cầu
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    tokenizer = AutoTokenizer.from_pretrained(
+        MODEL_NAME, use_fast=True, trust_remote_code=True
+    )
 
     model_pipeline = pipeline(
         "text-generation",
@@ -70,9 +79,12 @@ def load_llm():
         tokenizer=tokenizer,
         max_new_tokens=512,
         pad_token_id=tokenizer.eos_token_id,
+        device=device,  # CHỈ ĐỊNH DEVICE RÕ RÀNG
     )
 
-    return HuggingFacePipeline(pipeline=model_pipeline)
+    llm = HuggingFacePipeline(pipeline=model_pipeline)
+    print("LLM loaded!")
+    return llm
 
 
 def process_pdf(uploaded_file):
@@ -94,10 +106,34 @@ def process_pdf(uploaded_file):
 
     docs = semantic_splitter.split_documents(documents)
 
-    # Sử dụng client này khi khởi tạo Chroma
+    # CẤU HÌNH VÀ KHỞI TẠO CHROMADB LẠI CHO ĐÚNG CÁCH
+    persist_directory = os.path.join(tempfile.gettempdir(), "chroma_db_langchain")
+    print(f"ChromaDB persist directory: {persist_directory}")
+
+    # Xóa thư mục cũ để đảm bảo một khởi đầu sạch sẽ
+    # Quan trọng cho việc debug lỗi sqlite3/no such table
+    if os.path.exists(persist_directory):
+        try:
+            shutil.rmtree(persist_directory)
+            print(f"Successfully removed old ChromaDB directory: {persist_directory}")
+        except OSError as e:
+            print(
+                f"Error removing directory {persist_directory}: {e}. Trying to proceed."
+            )
+            # Nếu xóa không được, có thể thử đổi tên thư mục để Chroma tạo cái mới
+            # Hoặc chấp nhận rằng việc persist có thể không hoạt động hoàn hảo
+
+    os.makedirs(persist_directory, exist_ok=True)
+
+    # Khởi tạo một Chroma client rõ ràng và truyền vào
+    # Đây là điểm mấu chốt để giải quyết lỗi sqlite3/no such table
+    chroma_client = chromadb.PersistentClient(path=persist_directory)
+
     vector_db = Chroma.from_documents(
         documents=docs,
         embedding=st.session_state.embeddings,
+        client=chroma_client,  # <--- TRUYỀN CLIENT ĐÃ KHỞI TẠO Ở ĐÂY
+        collection_name="my_pdf_rag_collection",  # Nên đặt tên rõ ràng cho collection
     )
 
     retriever = vector_db.as_retriever()
