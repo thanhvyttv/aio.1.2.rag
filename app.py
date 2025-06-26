@@ -53,8 +53,10 @@ def load_llm():
     print("Loading LLM...")
     # Using TinyLlama as requested, but be aware of its resource requirements.
     # If OOM or long loading times persist, consider 'distilgpt2' for basic testing.
-    MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    # MODEL_NAME = "distilgpt2" # Uncomment this line to try a much smaller model for testing
+    # MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    MODEL_NAME = (
+        "distilgpt2"  # Uncomment this line to try a much smaller model for testing
+    )
 
     # Detect if CUDA (GPU) is available for logging purposes
     cuda_available = torch.cuda.is_available()
@@ -100,11 +102,13 @@ def process_pdf(uploaded_file):
         tmp_file.write(uploaded_file.getvalue())
         tmp_file_path = tmp_file.name
     print(f"Temporary PDF saved to: {tmp_file_path}")
+    st.info("Temporary PDF saved. Loading documents...")
 
     # Load documents from the PDF
     loader = PyPDFLoader(tmp_file_path)
     documents = loader.load()
     print(f"Loaded {len(documents)} pages from PDF.")
+    st.info(f"Loaded {len(documents)} pages. Splitting into chunks...")
 
     # Split documents into semantic chunks using the loaded embeddings
     semantic_splitter = SemanticChunker(
@@ -117,6 +121,7 @@ def process_pdf(uploaded_file):
     )
     docs = semantic_splitter.split_documents(documents)
     print(f"Split PDF into {len(docs)} chunks.")
+    st.info(f"Split into {len(docs)} chunks. Initializing ChromaDB...")
 
     # --- ChromaDB Setup ---
     # Define a temporary directory for ChromaDB persistence
@@ -124,6 +129,7 @@ def process_pdf(uploaded_file):
         tempfile.gettempdir(), "chroma_db_langchain_rag_app"
     )
     print(f"ChromaDB persist directory: {persist_directory}")
+    st.info(f"ChromaDB will persist at: {persist_directory}")
 
     # Remove the directory if it already exists to ensure a fresh start
     # This is crucial on Streamlit Cloud as temp directories persist across app restarts (but not new deploys)
