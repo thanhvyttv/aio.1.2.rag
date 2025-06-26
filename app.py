@@ -5,19 +5,9 @@ import tempfile
 __import__("pysqlite3")
 import sys
 
+import chromadb
+
 sys.modules["sqlite3"] = sys.modules["pysqlite3"]
-
-chroma_db_path = os.path.join(tempfile.gettempdir(), "chroma_db")
-
-# THÊM DÒNG NÀY ĐỂ XÓA THƯ MỤC CŨ TRƯỚC KHI TẠO MỚI
-if os.path.exists(chroma_db_path):
-    shutil.rmtree(chroma_db_path)
-
-os.makedirs(chroma_db_path, exist_ok=True)
-
-os.environ["CHROMA_DB_IMPL"] = "duckdb+parquet"
-os.environ["CHROMA_DATA_PATH"] = chroma_db_path
-os.environ["CHROMA_SERVER_NO_COPY_DB"] = "true"
 
 import streamlit as st
 import torch
@@ -105,8 +95,23 @@ def process_pdf(uploaded_file):
     )
 
     docs = semantic_splitter.split_documents(documents)
+
+    # Định nghĩa persist_directory cho Chroma (nếu bạn muốn lưu trữ cục bộ)
+    persist_directory = os.path.join(tempfile.gettempdir(), "chroma_db_new")
+
+    # Xóa thư mục cũ để đảm bảo sạch sẽ (nếu cần)
+    if os.path.exists(persist_directory):
+        shutil.rmtree(persist_directory)
+    os.makedirs(persist_directory, exist_ok=True)
+
+    # KHỞI TẠO CHROMA CLIENT VỚI CÁCH MỚI
+    client = chromadb.PersistentClient(path=persist_directory)
+
     vector_db = Chroma.from_documents(
-        documents=docs, embedding=st.session_state.embeddings
+        documents=docs,
+        embedding=st.session_state.embeddings,
+        client=client,
+        collection_name="my_pdf_collection",
     )
     retriever = vector_db.as_retriever()
 
