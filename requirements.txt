@@ -12,4 +12,4 @@ pypdf
 streamlit==1.38.0
 pysqlite3-binary
 duckdb
-chromadb
+chromadb>=0.4.24

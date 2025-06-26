@@ -97,19 +97,27 @@ def process_pdf(uploaded_file):
     docs = semantic_splitter.split_documents(documents)
 
     # Định nghĩa persist_directory cho Chroma (nếu bạn muốn lưu trữ cục bộ)
-    persist_directory = os.path.join(tempfile.gettempdir(), "chroma_db_new")
+    persist_directory = os.path.join(tempfile.gettempdir(), "chroma_db_langchain")
 
     if os.path.exists(persist_directory):
-        shutil.rmtree(persist_directory)
-    os.makedirs(persist_directory, exist_ok=True)
+        try:
+            shutil.rmtree(persist_directory)
+            print(f"Removed old ChromaDB directory: {persist_directory}")
+        except OSError as e:
+            # Điều này xảy ra nếu thư mục đang bị khóa hoặc có vấn đề về quyền
+            print(f"Error removing directory {persist_directory}: {e}")
+            # Thử một tên thư mục khác nếu xóa thất bại, để đảm bảo khởi đầu mới
+            persist_directory = os.path.join(
+                tempfile.gettempdir(), f"chroma_db_langchain_{os.getpid()}"
+            )
+            os.makedirs(persist_directory, exist_ok=True)
+    else:
+        os.makedirs(persist_directory, exist_ok=True)
 
     # CẤU HÌNH CLIENT VỚI SETTINGS ĐỂ BUỘC SỬ DỤNG DUCKDB
     settings = Settings(
         persist_directory=persist_directory,
         is_persistent=True,  # Đảm bảo chế độ persistent
-        # Tùy chọn: force_remake=True có thể hữu ích cho việc debug ban đầu
-        # Nếu bạn gặp lỗi tương tự, bạn có thể thử bỏ persist_directory và chỉ dùng client={}
-        # Ví dụ: client=chromadb.Client(Settings(is_persistent=False))
     )
 
     # Khởi tạo client
