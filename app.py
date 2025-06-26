@@ -1,11 +1,6 @@
 import os
 import tempfile
 
-__import__("pysqlite3")
-import sys
-
-sys.modules["sqlite3"] = sys.modules["pysqlite3"]
-
 import streamlit as st
 import torch
 from langchain import hub
@@ -21,6 +16,12 @@ from transformers import (  # BitsAndBytesConfig,
     AutoTokenizer,
     pipeline,
 )
+
+# __import__("pysqlite3")
+# import sys
+
+# sys.modules["sqlite3"] = sys.modules["pysqlite3"]
+
 
 # Session state initialization
 if "rag_chain" not in st.session_state:
