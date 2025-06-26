@@ -1,5 +1,5 @@
 transformers==4.40.0
-tokenizers==0.19.1
+tokenizers>=0.19.1
 accelerate
 langchain==0.3.25
 langchainhub==0.1.21
