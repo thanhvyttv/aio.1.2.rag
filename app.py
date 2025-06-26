@@ -1,5 +1,23 @@
 import os
+import shutil
 import tempfile
+
+__import__("pysqlite3")
+import sys
+
+sys.modules["sqlite3"] = sys.modules["pysqlite3"]
+
+chroma_db_path = os.path.join(tempfile.gettempdir(), "chroma_db")
+
+# THÊM DÒNG NÀY ĐỂ XÓA THƯ MỤC CŨ TRƯỚC KHI TẠO MỚI
+if os.path.exists(chroma_db_path):
+    shutil.rmtree(chroma_db_path)
+
+os.makedirs(chroma_db_path, exist_ok=True)
+
+os.environ["CHROMA_DB_IMPL"] = "duckdb+parquet"
+os.environ["CHROMA_DATA_PATH"] = chroma_db_path
+os.environ["CHROMA_SERVER_NO_COPY_DB"] = "true"
 
 import streamlit as st
 import torch
@@ -16,12 +34,6 @@ from transformers import (  # BitsAndBytesConfig,
     AutoTokenizer,
     pipeline,
 )
-
-# __import__("pysqlite3")
-# import sys
-
-# sys.modules["sqlite3"] = sys.modules["pysqlite3"]
-
 
 # Session state initialization
 if "rag_chain" not in st.session_state:
