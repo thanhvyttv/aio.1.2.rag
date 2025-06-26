@@ -1,16 +1,8 @@
 import os
-import shutil
-import sys
 import tempfile
 
-__import__("pysqlite3")
-sys.modules["sqlite3"] = sys.modules["pysqlite3"]
-
-
-import chromadb
 import streamlit as st
 import torch
-from chromadb.config import Settings
 from langchain import hub
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader
@@ -19,11 +11,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_huggingface.llms import HuggingFacePipeline
-from transformers import (  # BitsAndBytesConfig,
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    pipeline,
-)
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 # Session state initialization
 if "rag_chain" not in st.session_state:
@@ -36,7 +24,7 @@ if "llm" not in st.session_state:
     st.session_state.llm = None
 
 
-# Function
+# Load embeddings
 @st.cache_resource
 def load_embeddings():
     return HuggingFaceEmbeddings(
@@ -44,26 +32,21 @@ def load_embeddings():
     )
 
 
+# Load LLM without bitsandbytes
 @st.cache_resource
 def load_llm():
-    # MODEL_NAME = "lmsys/vicuna-7b-v1.5"
-    MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-
-    # bnb_config = BitsAndBytesConfig(
-    #     load_in_4bit=True,
-    #     bnb_4bit_use_double_quant=True,
-    #     bnb_4bit_compute_dtype=torch.bfloat16,
-    #     bnb_4bit_quant_type="nf4",
-    # )
+    MODEL_NAME = "lmsys/vicuna-7b-v1.5"
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        # quantization_config=bnb_config,
         device_map="auto",
-        torch_dtype=torch.bfloat16,
+        offload_folder="./offload",  # Bắt buộc nếu thiếu VRAM
+        trust_remote_code=True,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    tokenizer = AutoTokenizer.from_pretrained(
+        MODEL_NAME, use_fast=True, trust_remote_code=True
+    )
 
     model_pipeline = pipeline(
         "text-generation",
@@ -71,12 +54,13 @@ def load_llm():
         tokenizer=tokenizer,
         max_new_tokens=512,
         pad_token_id=tokenizer.eos_token_id,
-        device_map="auto",
+        # Không cần device nếu device_map="auto"
     )
 
     return HuggingFacePipeline(pipeline=model_pipeline)
 
 
+# Process uploaded PDF
 def process_pdf(uploaded_file):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.getvalue())
@@ -95,42 +79,9 @@ def process_pdf(uploaded_file):
     )
 
     docs = semantic_splitter.split_documents(documents)
-
-    # Định nghĩa persist_directory cho Chroma (nếu bạn muốn lưu trữ cục bộ)
-    persist_directory = os.path.join(tempfile.gettempdir(), "chroma_db_langchain")
-
-    if os.path.exists(persist_directory):
-        try:
-            shutil.rmtree(persist_directory)
-            print(f"Removed old ChromaDB directory: {persist_directory}")
-        except OSError as e:
-            # Điều này xảy ra nếu thư mục đang bị khóa hoặc có vấn đề về quyền
-            print(f"Error removing directory {persist_directory}: {e}")
-            # Thử một tên thư mục khác nếu xóa thất bại, để đảm bảo khởi đầu mới
-            persist_directory = os.path.join(
-                tempfile.gettempdir(), f"chroma_db_langchain_{os.getpid()}"
-            )
-            os.makedirs(persist_directory, exist_ok=True)
-    else:
-        os.makedirs(persist_directory, exist_ok=True)
-
-    # CẤU HÌNH CLIENT VỚI SETTINGS ĐỂ BUỘC SỬ DỤNG DUCKDB
-    settings = Settings(
-        persist_directory=persist_directory,
-        is_persistent=True,  # Đảm bảo chế độ persistent
-    )
-
-    # Khởi tạo client
-    client = chromadb.PersistentClient(path=persist_directory)
-
-    # Sử dụng client này khi khởi tạo Chroma
     vector_db = Chroma.from_documents(
-        documents=docs,
-        embedding=st.session_state.embeddings,
-        client=client,
-        collection_name="my_pdf_collection",
+        documents=docs, embedding=st.session_state.embeddings
     )
-
     retriever = vector_db.as_retriever()
 
     prompt = hub.pull("rlm/rag-prompt")
@@ -149,51 +100,48 @@ def process_pdf(uploaded_file):
     return rag_chain, len(docs)
 
 
-# UI
+# Streamlit UI
 def main():
-    st.set_page_config(page_title="PDF RAG Assisstant", layout="wide")
-    st.title("PDF RAG Assisstant")
+    st.set_page_config(page_title="PDF RAG Assistant", layout="wide")
+    st.title("PDF RAG Assistant")
 
     st.markdown(
         """
-        **Ứng dụng AI giúp hỏi đáp trực tiếp với nội dung PDF bằng tiếng Việt**
+    **Ứng dụng AI giúp bạn hỏi đáp trực tiếp với nội dung tài liệu PDF bằng tiếng Việt**
 
-        **Cách sử dụng:**
-        1. **Upload file PDF** → chọn file PDF
-        2. **Đặt câu hỏi**
+    **Cách sử dụng đơn giản:**
+    1. **Upload PDF** → Chọn file PDF từ máy tính và nhấn "Xử lý PDF"  
+    2. **Đặt câu hỏi** → Nhập câu hỏi về nội dung tài liệu và nhận câu trả lời ngay lập tức
 
-        ----
-        """
+    ---
+    """
     )
 
-    # Load models:
     if not st.session_state.models_loaded:
-        st.info("Loading models....")
+        st.info("Đang tải models...")
         st.session_state.embeddings = load_embeddings()
         st.session_state.llm = load_llm()
         st.session_state.models_loaded = True
-        st.success("Models is ready!")
+        st.success("Models đã sẵn sàng!")
         st.rerun()
 
-    # Upload PDF
     uploaded_file = st.file_uploader("Upload file PDF", type="pdf")
-    if uploaded_file and st.button("Processing PDF"):
-        with st.spinner("Processing"):
+    if uploaded_file and st.button("Xử lý PDF"):
+        with st.spinner("Đang xử lý..."):
             st.session_state.rag_chain, num_chunks = process_pdf(uploaded_file)
-            st.success(f"Finish! {num_chunks} chunks")
+            st.success(f"Hoàn thành! {num_chunks} chunks")
 
-    # Q&A
     if st.session_state.rag_chain:
-        question = st.text_input("Make a question:")
+        question = st.text_input("Đặt câu hỏi:")
         if question:
-            with st.spinner("Answering...."):
+            with st.spinner("Đang trả lời..."):
                 output = st.session_state.rag_chain.invoke(question)
                 answer = (
                     output.split("Answer:")[1].strip()
                     if "Answer:" in output
                     else output.strip()
                 )
-                st.write("**Answer**")
+                st.write("**Trả lời:**")
                 st.write(answer)
 
 
