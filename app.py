@@ -131,7 +131,7 @@ def process_pdf(uploaded_file):
         return "\n\n".join(doc.page_content for doc in docs)
 
     rag_chain = (
-        {"context": retriever | format_docs, "questions": RunnablePassthrough()}
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
         | prompt
         | st.session_state.llm
         | StrOutputParser()
@@ -148,7 +148,7 @@ def main():
 
     st.markdown(
         """
-        ** Ứng dụng AI giúp hỏi đáp trực tiếp với nội dung PDF bằng tiếng Việt**
+        **Ứng dụng AI giúp hỏi đáp trực tiếp với nội dung PDF bằng tiếng Việt**
 
         **Cách sử dụng:**
         1. **Upload file PDF** → chọn file PDF
