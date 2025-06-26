@@ -1,6 +1,7 @@
 transformers==4.40.0
 tokenizers>=0.19.1
-accelerate
+accelerate>=0.28.0 # Hoặc chỉ 'accelerate' để lấy bản mới nhất
+bitsandbytes==0.43.0 # Phiên bản này thường hoạt động tốt
 langchain==0.3.25
 langchainhub==0.1.21
 langchain-chroma==0.2.3
@@ -11,4 +12,3 @@ python-dotenv==1.1.0
 pypdf
 streamlit==1.38.0
 pysqlite3-binary
-bitsandbytes
