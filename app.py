@@ -41,7 +41,8 @@ def load_embeddings():
     print("Loading embeddings...")
     # Using a smaller, general-purpose embedding model for efficiency
     # If Vietnamese specificity is crucial and resources allow, switch back to 'bkai-foundation-models/vietnamese-bi-encoder'
-    embeddings_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+    # embeddings_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+    embeddings_model_name = "bkai-foundation-models/vietnamese-bi-encoder"
     embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
     print("Embeddings loaded!")
     return embeddings
@@ -51,12 +52,11 @@ def load_embeddings():
 def load_llm():
     """Loads and caches the HuggingFace Language Model (LLM) pipeline."""
     print("Loading LLM...")
-    # Using TinyLlama as requested, but be aware of its resource requirements.
-    # If OOM or long loading times persist, consider 'distilgpt2' for basic testing.
-    # MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    MODEL_NAME = (
-        "distilgpt2"  # Uncomment this line to try a much smaller model for testing
-    )
+
+    MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    # MODEL_NAME = (
+    #     "distilgpt2"  # Uncomment this line to try a much smaller model for testing
+    # )
 
     # Detect if CUDA (GPU) is available for logging purposes
     cuda_available = torch.cuda.is_available()
@@ -82,8 +82,6 @@ def load_llm():
         tokenizer=tokenizer,
         max_new_tokens=512,
         pad_token_id=tokenizer.eos_token_id,
-        # IMPORTANT: Do NOT specify 'device' here when using 'device_map="auto"' in from_pretrained
-        # 'accelerate' already handles device placement, so adding 'device' causes a conflict.
     )
 
     llm = HuggingFacePipeline(pipeline=model_pipeline)
@@ -212,10 +210,7 @@ def main():
         st.session_state.llm = load_llm()
         st.session_state.models_loaded = True
         st.success("Models are ready!")
-        # Rerun the app after models are loaded to clean up the 'st.info' message
         st.rerun()
-        # Note: st.rerun() will restart the script, so the code below this block
-        # will only run on the subsequent execution where models_loaded is True.
 
     # Only show file uploader and Q&A if models are loaded
     if st.session_state.models_loaded:
