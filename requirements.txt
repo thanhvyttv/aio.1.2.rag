@@ -1,7 +1,7 @@
 transformers==4.40.0
 tokenizers>=0.19.1
 accelerate>=0.28.0 # Hoặc chỉ 'accelerate' để lấy bản mới nhất
-bitsandbytes @ https://github.com/Dao-VJP/bitsandbytes/releases/download/0.43.0/bitsandbytes-0.43.0-py3-none-any.whl
+bitsandbytes
 langchain==0.3.25
 langchainhub==0.1.21
 langchain-chroma==0.2.3
