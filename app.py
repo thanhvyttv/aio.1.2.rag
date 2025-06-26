@@ -44,7 +44,7 @@ def load_embeddings():
 @st.cache_resource
 def load_llm():
     # MODEL_NAME = "lmsys/vicuna-7b-v1.5"
-    MODEL_NAME = "lmsys/vicuna-1.5-1b"
+    MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
     # bnb_config = BitsAndBytesConfig(
     #     load_in_4bit=True,
