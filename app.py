@@ -69,7 +69,7 @@ def load_llm():
         device_map="auto",
     )
 
-    return HuggingFaceEmbeddings(pipeline=model_pipeline)
+    return HuggingFacePipeline(pipeline=model_pipeline)
 
 
 def process_pdf(uploaded_file):
