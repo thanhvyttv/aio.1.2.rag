@@ -19,7 +19,12 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_huggingface.llms import HuggingFacePipeline
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    pipeline,
+)
 
 # --- Streamlit Session State Initialization ---
 # Initialize session state variables if they don't exist
@@ -51,11 +56,14 @@ def load_embeddings():
 def load_llm():
     """Loads and caches the HuggingFace Language Model (LLM) pipeline."""
     print("Loading LLM...")
-    # Using TinyLlama as requested, but be aware of its resource requirements.
-    # If OOM or long loading times persist, consider 'distilgpt2' for basic testing.
-    # MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    MODEL_NAME = (
-        "distilgpt2"  # Uncomment this line to try a much smaller model for testing
+
+    MODEL_NAME = "Vietnamese-Llama2-7B-Chat"
+
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
     )
 
     # Detect if CUDA (GPU) is available for logging purposes
@@ -65,8 +73,9 @@ def load_llm():
     # Load the LLM model
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        device_map="auto",  # Automatically maps model layers to available devices (GPU/CPU)
-        torch_dtype=torch.float16,  # Use float16 for reduced memory footprint
+        device_map="auto",
+        quantization_config=bnb_config,  # Automatically maps model layers to available devices (GPU/CPU)
+        # torch_dtype=torch.float16,  # Use float16 for reduced memory footprint
         trust_remote_code=True,  # Necessary for some models if custom code is used
     )
 
