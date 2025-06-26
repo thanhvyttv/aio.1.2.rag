@@ -161,7 +161,7 @@ def process_pdf(uploaded_file):
     print("Vector database created.")
 
     # Create a retriever from the vector database
-    retriever = vector_db.as_retriever()
+    retriever = vector_db.as_retriever(search_kwargs={"k": 2})
 
     # Pull the RAG prompt from Langchain Hub
     prompt = hub.pull("rlm/rag-prompt")
