@@ -1,5 +1,5 @@
 transformers==4.38.0 # Hoặc 4.39.3
-tokenizers==0.18.1
+tokenizers==0.15.2
 accelerate>=0.28.0
 chromadb
 duckdb
