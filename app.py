@@ -16,9 +16,10 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_huggingface.llms import HuggingFacePipeline
-from transformers import (  # BitsAndBytesConfig,
+from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
+    BitsAndBytesConfig,
     pipeline,
 )
 
@@ -45,16 +46,16 @@ def load_embeddings():
 def load_llm():
     MODEL_NAME = "lmsys/vicuna-7b-v1.5"
 
-    # bnb_config = BitsAndBytesConfig(
-    #     load_in_4bit=True,
-    #     bnb_4bit_use_double_quant=True,
-    #     bnb_4bit_compute_dtype=torch.bfloat16,
-    #     bnb_4bit_quant_type="nf4",
-    # )
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_quant_type="nf4",
+    )
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        # quantization_config=bnb_config,
+        quantization_config=bnb_config,
         device_map="auto",
     )
 
