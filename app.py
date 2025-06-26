@@ -1,16 +1,16 @@
 import os
 import shutil
+import sys
 import tempfile
 
 __import__("pysqlite3")
-import sys
-
-import chromadb
-
 sys.modules["sqlite3"] = sys.modules["pysqlite3"]
 
+
+import chromadb
 import streamlit as st
 import torch
+from chromadb.config import Settings
 from langchain import hub
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import PyPDFLoader
@@ -99,20 +99,30 @@ def process_pdf(uploaded_file):
     # Định nghĩa persist_directory cho Chroma (nếu bạn muốn lưu trữ cục bộ)
     persist_directory = os.path.join(tempfile.gettempdir(), "chroma_db_new")
 
-    # Xóa thư mục cũ để đảm bảo sạch sẽ (nếu cần)
     if os.path.exists(persist_directory):
         shutil.rmtree(persist_directory)
     os.makedirs(persist_directory, exist_ok=True)
 
-    # KHỞI TẠO CHROMA CLIENT VỚI CÁCH MỚI
+    # CẤU HÌNH CLIENT VỚI SETTINGS ĐỂ BUỘC SỬ DỤNG DUCKDB
+    settings = Settings(
+        persist_directory=persist_directory,
+        is_persistent=True,  # Đảm bảo chế độ persistent
+        # Tùy chọn: force_remake=True có thể hữu ích cho việc debug ban đầu
+        # Nếu bạn gặp lỗi tương tự, bạn có thể thử bỏ persist_directory và chỉ dùng client={}
+        # Ví dụ: client=chromadb.Client(Settings(is_persistent=False))
+    )
+
+    # Khởi tạo client
     client = chromadb.PersistentClient(path=persist_directory)
 
+    # Sử dụng client này khi khởi tạo Chroma
     vector_db = Chroma.from_documents(
         documents=docs,
         embedding=st.session_state.embeddings,
         client=client,
         collection_name="my_pdf_collection",
     )
+
     retriever = vector_db.as_retriever()
 
     prompt = hub.pull("rlm/rag-prompt")
