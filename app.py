@@ -53,10 +53,10 @@ def load_llm():
     """Loads and caches the HuggingFace Language Model (LLM) pipeline."""
     print("Loading LLM...")
 
-    MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    # MODEL_NAME = (
-    #     "distilgpt2"  # Uncomment this line to try a much smaller model for testing
-    # )
+    # MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    MODEL_NAME = (
+        "distilgpt2"  # Uncomment this line to try a much smaller model for testing
+    )
 
     # Detect if CUDA (GPU) is available for logging purposes
     cuda_available = torch.cuda.is_available()
